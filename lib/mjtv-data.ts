@@ -1,4 +1,4 @@
-export type ChannelStatus = "live" | "degraded" | "offline";
+export type ChannelStatus = "live" | "degraded" | "unverified" | "restricted" | "offline";
 
 export type MjtvChannel = {
   id: string;
@@ -12,6 +12,9 @@ export type MjtvChannel = {
   status: ChannelStatus;
   accent: string;
   streamUrl: string;
+  streams?: { id: string; url: string; quality: string; label: string; kind: "hls" | "mp4" | "unknown" }[];
+  health?: { status?: string; checkedAt?: string | null; sourceCount?: number; playableSourceCount?: number; reasonCode?: string; reasonMessage?: string };
+  epgStatus?: string;
 };
 
 export const MJTV_CHANNELS: MjtvChannel[] = [

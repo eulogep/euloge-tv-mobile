@@ -14,3 +14,9 @@
 - [x] Ajouter des tests automatisés couvrant les données et les transitions principales.
 - [x] Vérifier les formats 320, 375, 390 et 430 pixels ainsi que le lint et le contrôle TypeScript.
 - [x] Créer le bilan visuel et fonctionnel final de parité mobile-desktop.
+
+- [x] Connecter le catalogue mobile aux endpoints de la référence desktop.
+- [x] Connecter l’EPG et les états de santé réels aux cartes et au Player.
+- [x] Intégrer le fallback HLS, les erreurs détaillées et la sélection de qualité.
+- [x] Ajouter les animations de chargement et les retours visuels entre onglets.
+- [x] Tester les flux réseau, la lecture et la navigation intégrée.

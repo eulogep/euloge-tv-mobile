@@ -1,5 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Image, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Image, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { useMjtv } from "@/lib/mjtv-context";
 import type { MjtvChannel } from "@/lib/mjtv-data";
@@ -32,13 +33,17 @@ export function MjtvHeader({ title }: { title?: string }) {
 }
 
 export function StatusBadge({ status }: { status: MjtvChannel["status"] }) {
-  const copy = status === "live" ? "LIVE" : status === "degraded" ? "DÉGRADÉ" : "HORS LIGNE";
+  const copy = status === "live" ? "LIVE" : status === "degraded" ? "DÉGRADÉ" : status === "unverified" ? "À VÉRIFIER" : status === "restricted" ? "ACCÈS LIMITÉ" : "HORS LIGNE";
   const colors =
     status === "live"
       ? { backgroundColor: "rgba(255,64,95,0.16)", borderColor: "rgba(255,64,95,0.48)", color: "#FF7188" }
       : status === "degraded"
         ? { backgroundColor: "rgba(246,200,95,0.14)", borderColor: "rgba(246,200,95,0.36)", color: "#F6C85F" }
-        : { backgroundColor: "rgba(255,92,116,0.12)", borderColor: "rgba(255,92,116,0.36)", color: "#FF8799" };
+        : status === "unverified"
+          ? { backgroundColor: "rgba(162,123,255,0.14)", borderColor: "rgba(162,123,255,0.36)", color: "#B79BFF" }
+          : status === "restricted"
+            ? { backgroundColor: "rgba(246,200,95,0.12)", borderColor: "rgba(246,200,95,0.32)", color: "#F6C85F" }
+            : { backgroundColor: "rgba(255,92,116,0.12)", borderColor: "rgba(255,92,116,0.36)", color: "#FF8799" };
   return (
     <View style={[styles.badge, colors]}>
       <View style={[styles.badgeDot, { backgroundColor: colors.color }]} />
@@ -103,6 +108,19 @@ export function ChannelCard({ channel, variant = "rail" }: { channel: MjtvChanne
   );
 }
 
+export function LoadingSkeleton({ rows = 3 }: { rows?: number }) {
+  const opacity = useRef(new Animated.Value(0.42)).current;
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(opacity, { toValue: 0.82, duration: 650, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0.42, duration: 650, useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+  return <Animated.View style={[styles.skeletonWrap, { opacity }]}>{Array.from({ length: rows }).map((_, index) => <View key={index} style={styles.skeletonRow}><View style={styles.skeletonArt} /><View style={styles.skeletonCopy}><View style={styles.skeletonLineWide} /><View style={styles.skeletonLine} /><View style={styles.skeletonLineShort} /></View></View>)}</Animated.View>;
+}
+
 export function SectionHeading({ title, detail }: { title: string; detail?: string }) {
   return (
     <View style={styles.sectionHeading}>
@@ -145,6 +163,13 @@ export const styles = StyleSheet.create({
   progressValue: { height: "100%", borderRadius: 99 },
   favoriteButton: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.04)" },
   sectionHeading: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20 },
+  skeletonWrap: { marginHorizontal: 20, gap: 10, paddingVertical: 8 },
+  skeletonRow: { height: 82, borderRadius: 16, padding: 10, flexDirection: "row", gap: 12, backgroundColor: "#171728", borderWidth: 1, borderColor: "rgba(162,123,255,0.14)" },
+  skeletonArt: { width: 70, borderRadius: 11, backgroundColor: "#2A2941" },
+  skeletonCopy: { flex: 1, justifyContent: "center", gap: 8 },
+  skeletonLineWide: { width: "72%", height: 11, borderRadius: 6, backgroundColor: "#35324D" },
+  skeletonLine: { width: "50%", height: 8, borderRadius: 5, backgroundColor: "#2A2941" },
+  skeletonLineShort: { width: "34%", height: 6, borderRadius: 4, backgroundColor: "#2A2941" },
   sectionTitle: { color: "#F5F7FF", fontSize: 19, fontWeight: "800", letterSpacing: -0.3 },
   sectionDetail: { color: "#A9ADC2", marginTop: 2, fontSize: 12 },
 });

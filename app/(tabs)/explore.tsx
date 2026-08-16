@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { ChannelCard, MjtvHeader } from "@/components/mjtv/primitives";
+import { ChannelCard, LoadingSkeleton, MjtvHeader } from "@/components/mjtv/primitives";
 import { MJTV_CATEGORIES } from "@/lib/mjtv-data";
 import { useMjtv } from "@/lib/mjtv-context";
 import { haptic } from "@/lib/haptics";
@@ -9,7 +9,7 @@ import { filterChannels } from "@/lib/mjtv-state";
 import { ScreenContainer } from "@/components/screen-container";
 
 export default function ExploreScreen() {
-  const { channels, selectedCategory, setSelectedCategory, setSearchOpen } = useMjtv();
+  const { channels, selectedCategory, setSelectedCategory, setSearchOpen, catalogLoading } = useMjtv();
   const filtered = filterChannels(channels, selectedCategory, "");
   return (
     <ScreenContainer style={styles.screen}>
@@ -20,6 +20,7 @@ export default function ExploreScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={<>
           <MjtvHeader title="Explorer" />
+          {catalogLoading && <LoadingSkeleton rows={2} />}
           <Pressable accessibilityRole="button" accessibilityLabel="Ouvrir la recherche" onPress={() => { haptic.light(); setSearchOpen(true); }} style={({ pressed }) => [styles.searchPrompt, pressed && styles.pressed]}>
             <MaterialIcons name="search" size={20} color="#A27BFF" /><Text style={styles.searchCopy}>Rechercher une chaîne, un pays…</Text>
           </Pressable>

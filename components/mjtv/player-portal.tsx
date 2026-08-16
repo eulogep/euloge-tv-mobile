@@ -1,7 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useEffect } from "react";
-import { Modal, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { useEvent } from "expo";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StatusBadge } from "@/components/mjtv/primitives";
@@ -11,15 +12,55 @@ import { haptic } from "@/lib/haptics";
 export function MjtvPlayerPortal() {
   const { activeChannel, playerMode, isPlaying, muted, minimizePlayer, expandPlayer, closePlayer, togglePlayback, toggleMuted } = useMjtv();
   const insets = useSafeAreaInsets();
-  const source = activeChannel ? { uri: activeChannel.streamUrl, contentType: "hls" as const } : null;
-  const player = useVideoPlayer(source, (controller) => {
+  const sources = useMemo(() => {
+    if (!activeChannel) return [];
+    return activeChannel.streams?.length
+      ? activeChannel.streams
+      : activeChannel.streamUrl
+        ? [{ id: `${activeChannel.id}-primary`, url: activeChannel.streamUrl, quality: "Auto", label: "Source principale", kind: "hls" as const }]
+        : [];
+  }, [activeChannel]);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const source = sources[sourceIndex] ?? null;
+  const videoSource = useMemo(() => source ? { uri: source.url, contentType: source.kind === "hls" ? "hls" as const : "progressive" as const } : null, [source]);
+  const player = useVideoPlayer(videoSource, (controller) => {
     controller.staysActiveInBackground = true;
     controller.showNowPlayingNotification = true;
   });
+  const statusEvent = useEvent(player, "statusChange", { status: player.status, error: undefined });
+  const playerStatus = statusEvent?.status ?? player.status;
+  const playerEventError = statusEvent?.error;
+
+  useEffect(() => {
+    setSourceIndex(0);
+    setSourceError(null);
+  }, [activeChannel?.id]);
+
+  useEffect(() => {
+    if (!source) return;
+    try { player.replace(videoSource); } catch { setSourceError("La source sélectionnée ne peut pas être chargée."); }
+  }, [player, source, videoSource]);
 
   useEffect(() => {
     player.muted = muted;
   }, [muted, player]);
+
+  useEffect(() => {
+    if (!activeChannel || !source) return;
+    if (playerStatus === "error") {
+      const message = playerEventError?.message ?? "La source a rencontré une erreur de lecture.";
+      if (sourceIndex < sources.length - 1) {
+        setSourceError(`${message} Bascule vers ${sources[sourceIndex + 1]?.label ?? "la source suivante"}.`);
+        const timer = setTimeout(() => {
+          setSourceError(null);
+          setSourceIndex((current) => current + 1);
+        }, 650);
+        return () => clearTimeout(timer);
+      }
+      setSourceError(`${message} Toutes les sources disponibles ont été essayées.`);
+    }
+  }, [activeChannel, playerEventError, playerStatus, source, sourceIndex, sources]);
 
   useEffect(() => {
     if (!activeChannel) return;
@@ -34,6 +75,9 @@ export function MjtvPlayerPortal() {
       <MaterialIcons name={name} size={24} color="#FFFFFF" />
     </Pressable>
   );
+
+  const qualityOptions = sources.map((entry, index) => ({ ...entry, index }));
+  const statusLabel = playerStatus === "loading" ? "Connexion à la source…" : playerStatus === "error" ? "Lecture indisponible" : "Source sélectionnée";
 
   if (playerMode === "mini") {
     return (
@@ -64,18 +108,11 @@ export function MjtvPlayerPortal() {
           </Pressable>
         </View>
         <View style={styles.videoFrame}>
-          <VideoView
-            player={player}
-            style={styles.video}
-            contentFit="contain"
-            nativeControls
-            allowsFullscreen
-            allowsPictureInPicture
-            startsPictureInPictureAutomatically
-            surfaceType="textureView"
-          />
+          <VideoView player={player} style={styles.video} contentFit="contain" nativeControls allowsFullscreen allowsPictureInPicture startsPictureInPictureAutomatically surfaceType="textureView" />
+          {playerStatus === "idle" && <View style={styles.loadingOverlay}><ActivityIndicator color="#A27BFF" size="large" /><Text style={styles.loadingText}>{statusLabel}</Text></View>}
+          {sourceError && <View style={styles.errorOverlay}><MaterialIcons name="warning" size={24} color="#FF7188" /><Text style={styles.errorTitle}>Lecture interrompue</Text><Text style={styles.errorText}>{sourceError}</Text><Pressable onPress={() => { haptic.light(); setSourceError(null); setSourceIndex(0); }} style={styles.retry}><Text style={styles.retryText}>Réessayer les sources</Text></Pressable></View>}
         </View>
-        <View style={styles.playerInfo}>
+        <ScrollView contentContainerStyle={styles.playerInfo} showsVerticalScrollIndicator={false}>
           <View style={styles.playerHeading}>
             <View style={styles.playerTitleWrap}>
               <Text numberOfLines={1} style={styles.playerTitle}>{activeChannel.name}</Text>
@@ -85,17 +122,18 @@ export function MjtvPlayerPortal() {
               <MaterialIcons name={muted ? "volume-off" : "volume-up"} size={21} color="#DDE0F0" />
             </Pressable>
           </View>
-          <View style={styles.playerControls}>
-            {control(isPlaying ? "pause" : "play-arrow", isPlaying ? "Mettre en pause" : "Lecture", () => { haptic.light(); togglePlayback(); })}
-            <Text style={styles.liveCopy}>EN DIRECT</Text>
-          </View>
+          <View style={styles.playerControls}>{control(isPlaying ? "pause" : "play-arrow", isPlaying ? "Mettre en pause" : "Lecture", () => { haptic.light(); togglePlayback(); })}<Text style={styles.liveCopy}>EN DIRECT · {statusLabel}</Text></View>
+          <Text style={styles.qualityLabel}>QUALITÉ / SOURCE</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.qualityRow}>
+            {qualityOptions.map((option) => <Pressable key={option.id} onPress={() => { haptic.selection(); setSourceError(null); setSourceIndex(option.index); }} style={({ pressed }) => [styles.qualityChip, sourceIndex === option.index && styles.qualityChipActive, pressed && styles.pressed]}><Text style={[styles.qualityText, sourceIndex === option.index && styles.qualityTextActive]}>{option.quality}</Text></Pressable>)}
+          </ScrollView>
           <View style={styles.epgCard}>
-            <Text style={styles.epgEyebrow}>EN CE MOMENT</Text>
+            <Text style={styles.epgEyebrow}>EN CE MOMENT · {activeChannel.epgStatus === "unknown" ? "EPG en attente" : "EPG MJTV"}</Text>
             <Text style={styles.epgCurrent}>{activeChannel.currentProgram}</Text>
             <View style={styles.progressTrack}><View style={[styles.progressValue, { width: `${activeChannel.progress * 100}%`, backgroundColor: activeChannel.accent }]} /></View>
             <Text style={styles.epgNext}>À suivre · {activeChannel.nextProgram}</Text>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -103,29 +141,10 @@ export function MjtvPlayerPortal() {
 
 const styles = StyleSheet.create({
   mini: { position: "absolute", left: 12, right: 12, minHeight: 62, zIndex: 50, borderRadius: 16, borderWidth: 1, borderColor: "rgba(162,123,255,0.38)", backgroundColor: "#171728", flexDirection: "row", alignItems: "center", padding: 7, shadowColor: "#000", shadowOpacity: 0.38, shadowRadius: 22, elevation: 12 },
-  miniVideo: { width: 66, height: 44, borderRadius: 10, backgroundColor: "#05050B" },
-  miniMeta: { minWidth: 0, flex: 1, marginHorizontal: 10 },
-  miniTitle: { color: "#F5F7FF", fontSize: 12, fontWeight: "800" },
-  miniProgram: { color: "#A9ADC2", fontSize: 10, marginTop: 3 },
-  control: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "#7A5CFF" },
-  close: { width: 38, height: 38, marginLeft: 2, alignItems: "center", justifyContent: "center" },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
-  fullscreen: { flex: 1, backgroundColor: "#070711" },
-  playerTop: { height: 62, paddingHorizontal: 20, alignItems: "center", justifyContent: "space-between", flexDirection: "row" },
-  topControl: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.08)" },
-  videoFrame: { aspectRatio: 16 / 9, backgroundColor: "#000000", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(162,123,255,0.2)" },
-  video: { width: "100%", height: "100%" },
-  playerInfo: { padding: 20 },
-  playerHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
-  playerTitleWrap: { flex: 1, minWidth: 0 },
-  playerTitle: { color: "#F5F7FF", fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
-  playerSubtitle: { color: "#A9ADC2", fontSize: 12, marginTop: 4 },
-  playerControls: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 20 },
-  liveCopy: { color: "#FF7188", fontSize: 11, fontWeight: "900", letterSpacing: 1.1 },
-  epgCard: { marginTop: 24, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: "rgba(162,123,255,0.24)", backgroundColor: "#111324" },
-  epgEyebrow: { color: "#A27BFF", fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
-  epgCurrent: { color: "#F5F7FF", marginTop: 7, fontSize: 16, fontWeight: "800" },
-  progressTrack: { marginTop: 13, height: 4, borderRadius: 99, backgroundColor: "#2A2A42", overflow: "hidden" },
-  progressValue: { height: "100%", borderRadius: 99 },
-  epgNext: { color: "#A9ADC2", marginTop: 11, fontSize: 12 },
+  miniVideo: { width: 66, height: 44, borderRadius: 10, backgroundColor: "#05050B" }, miniMeta: { minWidth: 0, flex: 1, marginHorizontal: 10 }, miniTitle: { color: "#F5F7FF", fontSize: 12, fontWeight: "800" }, miniProgram: { color: "#A9ADC2", fontSize: 10, marginTop: 3 },
+  control: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "#7A5CFF" }, close: { width: 38, height: 38, marginLeft: 2, alignItems: "center", justifyContent: "center" }, pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
+  fullscreen: { flex: 1, backgroundColor: "#070711" }, playerTop: { height: 62, paddingHorizontal: 20, alignItems: "center", justifyContent: "space-between", flexDirection: "row" }, topControl: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.08)" },
+  videoFrame: { aspectRatio: 16 / 9, backgroundColor: "#000000", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(162,123,255,0.2)", justifyContent: "center" }, video: { width: "100%", height: "100%" }, loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(5,5,11,0.72)" }, loadingText: { color: "#DDE0F0", marginTop: 10, fontSize: 12, fontWeight: "700" }, errorOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", padding: 26, backgroundColor: "rgba(5,5,11,0.9)" }, errorTitle: { color: "#F5F7FF", marginTop: 8, fontSize: 16, fontWeight: "900" }, errorText: { color: "#B9B7C8", marginTop: 8, fontSize: 12, textAlign: "center", lineHeight: 18 }, retry: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: "#A27BFF" }, retryText: { color: "#070711", fontSize: 12, fontWeight: "900" },
+  playerInfo: { padding: 20, paddingBottom: 40 }, playerHeading: { flexDirection: "row", alignItems: "center", gap: 12 }, playerTitleWrap: { flex: 1, minWidth: 0 }, playerTitle: { color: "#F5F7FF", fontSize: 22, fontWeight: "900", letterSpacing: -0.5 }, playerSubtitle: { color: "#A9ADC2", fontSize: 12, marginTop: 4 }, playerControls: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 20 }, liveCopy: { color: "#FF7188", fontSize: 10, fontWeight: "900", letterSpacing: 0.7, flexShrink: 1 }, qualityLabel: { color: "#A27BFF", marginTop: 22, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 }, qualityRow: { gap: 8, paddingVertical: 10 }, qualityChip: { borderRadius: 16, borderWidth: 1, borderColor: "rgba(162,123,255,0.25)", backgroundColor: "#171728", paddingHorizontal: 13, paddingVertical: 8 }, qualityChipActive: { borderColor: "#A27BFF", backgroundColor: "rgba(162,123,255,0.2)" }, qualityText: { color: "#A9ADC2", fontSize: 11, fontWeight: "800" }, qualityTextActive: { color: "#F5F7FF" },
+  epgCard: { marginTop: 16, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: "rgba(162,123,255,0.24)", backgroundColor: "#111324" }, epgEyebrow: { color: "#A27BFF", fontSize: 10, fontWeight: "900", letterSpacing: 1.1 }, epgCurrent: { color: "#F5F7FF", marginTop: 7, fontSize: 16, fontWeight: "800" }, progressTrack: { marginTop: 13, height: 4, borderRadius: 99, backgroundColor: "#2A2A42", overflow: "hidden" }, progressValue: { height: "100%", borderRadius: 99 }, epgNext: { color: "#A9ADC2", marginTop: 11, fontSize: 12 },
 });

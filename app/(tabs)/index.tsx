@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { ChannelArtwork, ChannelCard, MjtvHeader, SectionHeading, StatusBadge } from "@/components/mjtv/primitives";
+import { ChannelArtwork, ChannelCard, LoadingSkeleton, MjtvHeader, SectionHeading, StatusBadge } from "@/components/mjtv/primitives";
 import { useMjtv } from "@/lib/mjtv-context";
 import { haptic } from "@/lib/haptics";
 import { ScreenContainer } from "@/components/screen-container";
@@ -12,7 +12,7 @@ const railSections = [
 ];
 
 export default function HomeScreen() {
-  const { channels, favorites, openPlayer, toggleFavorite } = useMjtv();
+  const { channels, favorites, openPlayer, toggleFavorite, catalogLoading, catalogError, refreshCatalog } = useMjtv();
   const featured = channels[0];
   return (
     <ScreenContainer style={styles.screen}>
@@ -33,6 +33,8 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <>
             <MjtvHeader />
+            {catalogLoading && <LoadingSkeleton rows={2} />}
+            {catalogError && <Pressable onPress={refreshCatalog} style={styles.networkNotice}><MaterialIcons name="sync" size={17} color="#F6C85F" /><Text style={styles.networkNoticeText}>Catalogue indisponible · toucher pour réessayer</Text></Pressable>}
             <View style={styles.heroHalo} />
             <Pressable
               accessibilityRole="button"
@@ -84,5 +86,7 @@ const styles = StyleSheet.create({
   rail: { paddingLeft: 20, paddingRight: 8, paddingTop: 8 },
   footer: { paddingHorizontal: 20, paddingTop: 28 },
   footerText: { color: "#747386", fontSize: 11, lineHeight: 17, textAlign: "center" },
+  networkNotice: { marginHorizontal: 20, marginBottom: 10, minHeight: 42, paddingHorizontal: 12, borderRadius: 13, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(246,200,95,0.1)", borderWidth: 1, borderColor: "rgba(246,200,95,0.26)" },
+  networkNoticeText: { color: "#F6C85F", fontSize: 11, fontWeight: "700" },
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
 });

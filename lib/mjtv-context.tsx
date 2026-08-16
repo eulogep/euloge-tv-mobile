@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type PropsWith
 
 import { MJTV_CHANNELS, channelById, type MjtvChannel } from "@/lib/mjtv-data";
 import { addRecentChannel, toggleChannelId } from "@/lib/mjtv-state";
+import { mapRemoteCatalog, mapRemoteChannel, type RemoteCatalogResponse, type RemoteChannel } from "@/lib/mjtv-api";
+import { trpc } from "@/lib/trpc";
 
 export type PlayerMode = "closed" | "expanded" | "mini";
 
@@ -17,6 +19,9 @@ type MjtvContextValue = {
   selectedCategory: string;
   query: string;
   searchOpen: boolean;
+  catalogLoading: boolean;
+  catalogError: string | null;
+  refreshCatalog: () => void;
   toggleFavorite: (channelId: string) => void;
   openPlayer: (channelId: string) => void;
   minimizePlayer: () => void;
@@ -43,6 +48,12 @@ export function MjtvProvider({ children }: PropsWithChildren) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
+  const catalogQuery = trpc.mjtv.catalog.useQuery({ limit: 40, sort: "quality" }, { staleTime: 300_000, refetchOnMount: false });
+  const channelQuery = trpc.mjtv.channel.useQuery(
+    { id: activeChannelId ?? "none" },
+    { enabled: Boolean(activeChannelId && playerMode !== "closed"), staleTime: 300_000 },
+  );
+
   useEffect(() => {
     void (async () => {
       const [storedFavorites, storedHistory] = await Promise.all([
@@ -65,21 +76,36 @@ export function MjtvProvider({ children }: PropsWithChildren) {
     void AsyncStorage.setItem("mjtv.history", JSON.stringify(history));
   }, [history, hydrated]);
 
+  const channels = useMemo(() => {
+    const remote = catalogQuery.data as RemoteCatalogResponse | undefined;
+    if (!remote?.items?.length) return MJTV_CHANNELS;
+    const mapped = mapRemoteCatalog(remote);
+    const remoteIds = new Set(mapped.map((channel) => channel.id));
+    const curatedFallback = MJTV_CHANNELS.filter((channel) => !remoteIds.has(channel.id));
+    return [...mapped, ...curatedFallback];
+  }, [catalogQuery.data]);
+
+  const activeChannel = useMemo(() => {
+    const detail = channelQuery.data as RemoteChannel | undefined;
+    return detail?.id ? mapRemoteChannel(detail) : channels.find((channel) => channel.id === activeChannelId) ?? channelById(activeChannelId);
+  }, [activeChannelId, channelQuery.data, channels]);
+
   const value = useMemo<MjtvContextValue>(
     () => ({
-      channels: MJTV_CHANNELS,
+      channels,
       favorites,
       history,
-      activeChannel: channelById(activeChannelId),
+      activeChannel,
       playerMode,
       isPlaying,
       muted,
       selectedCategory,
       query,
       searchOpen,
-      toggleFavorite: (channelId) => {
-        setFavorites((current) => toggleChannelId(current, channelId));
-      },
+      catalogLoading: catalogQuery.isLoading,
+      catalogError: catalogQuery.error?.message ?? null,
+      refreshCatalog: () => { void catalogQuery.refetch(); },
+      toggleFavorite: (channelId) => setFavorites((current) => toggleChannelId(current, channelId)),
       openPlayer: (channelId) => {
         setActiveChannelId(channelId);
         setHistory((current) => addRecentChannel(current, channelId));
@@ -99,7 +125,7 @@ export function MjtvProvider({ children }: PropsWithChildren) {
       setQuery,
       setSearchOpen,
     }),
-    [activeChannelId, favorites, history, isPlaying, muted, playerMode, query, searchOpen, selectedCategory],
+    [activeChannel, catalogQuery.error?.message, catalogQuery.isLoading, favorites, history, isPlaying, muted, playerMode, query, searchOpen, selectedCategory, channels],
   );
 
   return <MjtvContext.Provider value={value}>{children}</MjtvContext.Provider>;
