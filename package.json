@@ -1,7 +1,12 @@
 {
-  "name": "app-template",
+  "name": "mjtv-mobile",
   "version": "1.0.0",
   "private": true,
+  "author": "Euloge Mabiala",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eulogep/euloge-tv-mobile.git"
+  },
   "main": "expo-router/entry",
   "scripts": {
     "dev": "concurrently -k \"pnpm dev:server\" \"pnpm dev:metro\"",
@@ -10,9 +15,10 @@
     "build": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
-    "lint": "expo lint",
+    "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:live": "cross-env MJTV_LIVE_API_TEST=1 vitest run tests/mjtv-api-connection.test.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "android": "expo start --android",
     "ios": "expo start --ios",
