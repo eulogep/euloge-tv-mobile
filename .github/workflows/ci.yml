@@ -1,0 +1,104 @@
+name: Mobile CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      run_live_smoke:
+        description: Test the public MJTV API after the deterministic checks
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate and bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Run deterministic tests
+        run: pnpm test
+
+      - name: Build mobile proxy
+        run: pnpm build
+
+      - name: Validate Expo project
+        run: pnpm dlx expo-doctor@1.20.2
+
+      - name: Bundle Android
+        run: pnpm exec expo export --platform android --output-dir "$RUNNER_TEMP/expo-android"
+
+      - name: Bundle iOS
+        run: pnpm exec expo export --platform ios --output-dir "$RUNNER_TEMP/expo-ios"
+
+      - name: Bundle web
+        run: pnpm exec expo export --platform web --output-dir "$RUNNER_TEMP/expo-web"
+
+  live-smoke:
+    name: Live API smoke
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_live_smoke }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: "1"
+      MJTV_API_BASE_URL: https://tv.mjtv.app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test the public MJTV contract
+        run: pnpm test:live
