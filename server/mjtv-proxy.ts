@@ -11,6 +11,12 @@ import {
 
 const BASE_ENV_KEY = "MJTV_API_BASE_URL";
 
+export const MJTV_REQUEST_TIMEOUT_MS = {
+  catalog: 90_000,
+  channel: 20_000,
+  channelHealth: 12_000,
+} as const;
+
 function getBaseUrl(): string {
   const value = process.env[BASE_ENV_KEY]?.trim();
   if (!value) {
@@ -38,6 +44,7 @@ async function fetchMjtv<T>(
   path: string,
   schema: z.ZodType<T>,
   params: Record<string, string | number | undefined> = {},
+  timeoutMs: number = MJTV_REQUEST_TIMEOUT_MS.channel,
 ): Promise<T> {
   const url = new URL(`${getBaseUrl()}${path}`);
   Object.entries(params).forEach(([key, value]) => {
@@ -49,7 +56,7 @@ async function fetchMjtv<T>(
   try {
     response = await fetch(url, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     const timedOut =
@@ -98,13 +105,20 @@ async function fetchMjtv<T>(
 export function fetchCatalog(
   params: Record<string, string | number | undefined>,
 ): Promise<RemoteCatalogResponse> {
-  return fetchMjtv("/api/catalog", RemoteCatalogResponseSchema, params);
+  return fetchMjtv(
+    "/api/catalog",
+    RemoteCatalogResponseSchema,
+    params,
+    MJTV_REQUEST_TIMEOUT_MS.catalog,
+  );
 }
 
 export function fetchChannel(id: string): Promise<RemoteChannel> {
   return fetchMjtv(
     `/api/channels/${encodeURIComponent(id)}`,
     RemoteChannelSchema,
+    {},
+    MJTV_REQUEST_TIMEOUT_MS.channel,
   );
 }
 
@@ -112,5 +126,7 @@ export function fetchChannelHealth(id: string) {
   return fetchMjtv(
     `/api/channels/${encodeURIComponent(id)}/health`,
     RemoteHealthSchema,
+    {},
+    MJTV_REQUEST_TIMEOUT_MS.channelHealth,
   );
 }

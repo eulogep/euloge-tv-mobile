@@ -107,6 +107,7 @@ export function MjtvProvider({ children }: PropsWithChildren) {
     { limit: PAGE_SIZE, sort: "quality" },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      retry: false,
       staleTime: 300_000,
       refetchOnMount: false,
     },
@@ -120,6 +121,7 @@ export function MjtvProvider({ children }: PropsWithChildren) {
     {
       enabled: Boolean(selectedCategory),
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      retry: false,
       staleTime: 300_000,
     },
   );
@@ -128,6 +130,7 @@ export function MjtvProvider({ children }: PropsWithChildren) {
     {
       enabled: searchOpen && Boolean(deferredQuery),
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      retry: false,
       staleTime: 120_000,
     },
   );

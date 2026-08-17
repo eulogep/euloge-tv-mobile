@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchCatalog } from "../server/mjtv-proxy";
+import {
+  fetchCatalog,
+  fetchChannel,
+  fetchChannelHealth,
+  MJTV_REQUEST_TIMEOUT_MS,
+} from "../server/mjtv-proxy";
 
 const catalogPayload = {
   items: [{ id: "channel-1", name: "Channel 1", streamCount: 1 }],
@@ -17,8 +22,37 @@ describe("proxy MJTV", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     delete process.env.MJTV_API_BASE_URL;
+  });
+
+  it("applique des délais distincts par endpoint", async () => {
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockReturnValue(new AbortController().signal);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(catalogPayload), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "channel-1", name: "Channel 1" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "unverified" }), { status: 200 }),
+      );
+
+    await fetchCatalog({ limit: 20 });
+    await fetchChannel("channel-1");
+    await fetchChannelHealth("channel-1");
+
+    expect(timeout.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([
+      MJTV_REQUEST_TIMEOUT_MS.catalog,
+      MJTV_REQUEST_TIMEOUT_MS.channel,
+      MJTV_REQUEST_TIMEOUT_MS.channelHealth,
+    ]);
   });
 
   it("transmet le curseur et les filtres au catalogue", async () => {
