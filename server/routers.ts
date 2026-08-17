@@ -11,7 +11,9 @@ const catalogInput = z.object({
   country: z.string().optional(),
   category: z.string().optional(),
   language: z.string().optional(),
-  availability: z.enum(["recommended", "unverified", "limited", "blocked"]).optional(),
+  availability: z
+    .enum(["recommended", "unverified", "limited", "blocked"])
+    .optional(),
   sort: z.enum(["quality", "name", "country"]).optional(),
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(40),
@@ -29,9 +31,35 @@ export const appRouter = router({
     }),
   }),
   mjtv: router({
-    catalog: publicProcedure.input(catalogInput).query(({ input }) => fetchCatalog(input)),
-    channel: publicProcedure.input(z.object({ id: z.string().min(1) })).query(({ input }) => fetchChannel(input.id)),
-    health: publicProcedure.input(z.object({ id: z.string().min(1) })).query(({ input }) => fetchChannelHealth(input.id)),
+    catalog: publicProcedure
+      .input(catalogInput)
+      .query(({ input }) => fetchCatalog(input)),
+    channel: publicProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .query(({ input }) => fetchChannel(input.id)),
+    channels: publicProcedure
+      .input(z.object({ ids: z.array(z.string().min(1)).max(50) }))
+      .query(async ({ input }) => {
+        const channels = await Promise.all(
+          input.ids.map(async (id) => {
+            try {
+              return await fetchChannel(id);
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                "code" in error &&
+                error.code === "NOT_FOUND"
+              )
+                return null;
+              throw error;
+            }
+          }),
+        );
+        return channels.filter((channel) => channel !== null);
+      }),
+    health: publicProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .query(({ input }) => fetchChannelHealth(input.id)),
   }),
 });
 
