@@ -63,14 +63,14 @@ jobs:
       - name: Validate Expo project
         run: pnpm dlx expo-doctor@1.20.2
 
+      - name: Bundle web
+        run: pnpm exec expo export --platform web --output-dir "$RUNNER_TEMP/expo-web"
+
       - name: Bundle Android
         run: pnpm exec expo export --platform android --output-dir "$RUNNER_TEMP/expo-android"
 
       - name: Bundle iOS
         run: pnpm exec expo export --platform ios --output-dir "$RUNNER_TEMP/expo-ios"
-
-      - name: Bundle web
-        run: pnpm exec expo export --platform web --output-dir "$RUNNER_TEMP/expo-web"
 
   live-smoke:
     name: Live API smoke
