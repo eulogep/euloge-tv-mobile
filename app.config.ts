@@ -22,6 +22,7 @@ const legacyScheme = `manus${legacySuffix}`;
 
 const config: ExpoConfig = {
   name: "MJTV",
+  owner: "eulogep",
   slug: "euloge-tv-mobile",
   version: "1.0.0",
   orientation: "portrait",
@@ -32,6 +33,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: bundleId,
+    buildNumber: "1",
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
@@ -46,6 +48,7 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: bundleId,
+    versionCode: 10002,
     blockedPermissions: [
       "android.permission.POST_NOTIFICATIONS",
       "android.permission.READ_EXTERNAL_STORAGE",
@@ -101,6 +104,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  extra: {
+    eas: {
+      projectId: "29d9c74c-b195-4f96-8ee7-04046736ac9b",
+    },
   },
 };
 
