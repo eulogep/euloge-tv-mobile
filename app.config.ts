@@ -46,7 +46,13 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: bundleId,
-    permissions: ["POST_NOTIFICATIONS"],
+    blockedPermissions: [
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.RECORD_AUDIO",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+    ],
     intentFilters: [
       {
         action: "VIEW",
@@ -63,13 +69,6 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
-    [
-      "expo-audio",
-      {
-        microphonePermission:
-          "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
     [
       "expo-video",
       {

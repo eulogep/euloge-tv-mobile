@@ -2,6 +2,7 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
 import type { Express, Request, Response } from "express";
 import { getUserByOpenId, upsertUser } from "../db";
 import { getSessionCookieOptions } from "./cookies";
+import { resolveOAuthFrontendUrl } from "./oauth-redirect";
 import { sdk } from "./sdk";
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -85,13 +86,10 @@ export function registerOAuthRoutes(app: Express) {
 
       // Redirect to the frontend URL (Expo web on port 8081)
       // Cookie is set with parent domain so it works across both 3000 and 8081 subdomains
-      const frontendUrl =
-        process.env.EXPO_WEB_PREVIEW_URL ||
-        process.env.EXPO_PACKAGER_PROXY_URL ||
-        "http://localhost:8081";
+      const frontendUrl = resolveOAuthFrontendUrl();
       res.redirect(302, frontendUrl);
-    } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+    } catch {
+      console.error("[OAuth] Callback failed");
       res.status(500).json({ error: "OAuth callback failed" });
     }
   });
@@ -122,8 +120,8 @@ export function registerOAuthRoutes(app: Express) {
         app_session_id: sessionToken,
         user: buildUserResponse(user),
       });
-    } catch (error) {
-      console.error("[OAuth] Mobile exchange failed", error);
+    } catch {
+      console.error("[OAuth] Mobile exchange failed");
       res.status(500).json({ error: "OAuth mobile exchange failed" });
     }
   });
@@ -139,8 +137,8 @@ export function registerOAuthRoutes(app: Express) {
     try {
       const user = await sdk.authenticateRequest(req);
       res.json({ user: buildUserResponse(user) });
-    } catch (error) {
-      console.error("[Auth] /api/auth/me failed:", error);
+    } catch {
+      console.error("[Auth] /api/auth/me failed");
       res.status(401).json({ error: "Not authenticated", user: null });
     }
   });
@@ -166,8 +164,8 @@ export function registerOAuthRoutes(app: Express) {
       res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
       res.json({ success: true, user: buildUserResponse(user) });
-    } catch (error) {
-      console.error("[Auth] /api/auth/session failed:", error);
+    } catch {
+      console.error("[Auth] /api/auth/session failed");
       res.status(401).json({ error: "Invalid token" });
     }
   });
